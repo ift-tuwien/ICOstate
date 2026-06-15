@@ -10,7 +10,7 @@ authors = [
 
 dependencies = [
   "dynaconf>=3.1.12,<4",
-  "icotronic>=7.2,<8",
+  "icotronic>=8,<9",
   "netaddr>=1.3.0",
   "pyee>=13.0.0",
 ]
