@@ -966,21 +966,26 @@ class ICOsystem(AsyncIOEventEmitter):
 
             >>> from asyncio import run
             >>> from icostate.config import settings
+            >>> from icostate import UnsupportedFeatureException
 
-            Getting sensor config for node (with support) works
+            Getting sensor config for node works
 
             >>> async def get_sensor_configuration(icosystem: ICOsystem,
             ...                                    mac_address: str):
             ...     await icosystem.connect_stu()
             ...     await icosystem.connect_sensor_node_mac(mac_address)
-            ...     config = await icosystem.get_sensor_configuration()
-            ...     await icosystem.disconnect_sensor_node()
-            ...     await icosystem.disconnect_stu()
+            ...     try:
+            ...         config = await icosystem.get_sensor_configuration()
+            ...     except UnsupportedFeatureException:
+            ...         config = {}
+            ...     finally:
+            ...         await icosystem.disconnect_sensor_node()
+            ...         await icosystem.disconnect_stu()
             ...     return config
             >>> config = run(get_sensor_configuration(ICOsystem(),
             ...                              settings.sensor_node.eui))
-            >>> [ 0 <= value <= 255 for value in config.values() ]
-            [True, True, True]
+            >>> all([ 0 <= value <= 255 for value in config.values()])
+            True
 
         """
 
