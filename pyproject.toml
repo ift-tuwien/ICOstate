@@ -26,7 +26,7 @@ keywords = [
 name = "icostate"
 readme = "ReadMe.md"
 requires-python = ">=3.12,<4"
-version = "0.25.0"
+version = "0.26.0"
 
 [project.optional-dependencies]
 dev = [
