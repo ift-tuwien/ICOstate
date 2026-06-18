@@ -52,11 +52,16 @@ Before you work with the ICOtronic system you need to set up the CAN connection 
 .. doctest::
 
    >>> from asyncio import run
+   >>> from sys import stderr
    >>> from icostate import ICOsystem
 
    >>> async def connect_disconnect_stu(icosystem: ICOsystem):
-   ...     await icosystem.connect_stu()
-   ...     await icosystem.disconnect_stu()
+   ...     try:
+   ...        await icosystem.connect_stu()
+   ...     except CANInitError as error:
+   ...        print(f"Unable to connect to ICOtronic system: {error}", file=stderr)
+   ...     finally:
+   ...        await icosystem.disconnect_stu()
 
    >>> run(connect_disconnect_stu(ICOsystem()))
 
@@ -68,12 +73,17 @@ In case you have the ICOtronic system does not react as you expect you can reset
 .. doctest::
 
    >>> from asyncio import run
+   >>> from sys import stderr
    >>> from icostate import ICOsystem
 
    >>> async def reset_stu(icosystem: ICOsystem):
-   ...     await icosystem.connect_stu()
-   ...     await icosystem.reset_stu()
-   ...     await icosystem.disconnect_stu()
+   ...     try:
+   ...        await icosystem.connect_stu()
+   ...        await icosystem.reset_stu()
+   ...     except CANInitError as error:
+   ...        print(f"Error while resetting STU: {error}", file=stderr)
+   ...     finally:
+   ...        await icosystem.disconnect_stu()
 
    >>> run(reset_stu(ICOsystem()))
 
@@ -85,13 +95,18 @@ To retrieve information about available sensor nodes use the coroutine :meth:`IC
 .. doctest::
 
    >>> from asyncio import run
+   >>> from sys import stderr
    >>> from netaddr import EUI
    >>> from icostate import ICOsystem, SensorNodeInfo
 
    >>> async def get_sensor_nodes(icosystem: ICOsystem) -> list[SensorNodeInfo]:
-   ...     await icosystem.connect_stu()
-   ...     sensor_nodes = await icosystem.collect_sensor_nodes()
-   ...     await icosystem.disconnect_stu()
+   ...     try:
+   ...        await icosystem.connect_stu()
+   ...        sensor_nodes = await icosystem.collect_sensor_nodes()
+   ...     except CANInitError as error:
+   ...        print(f"Unable to connect to ICOtronic system: {error}", file=stderr)
+   ...     finally:
+   ...        await icosystem.disconnect_stu()
    ...     return sensor_nodes
 
    >>> sensor_nodes = run(get_sensor_nodes(ICOsystem()))
@@ -120,24 +135,36 @@ Before you start a measurement you need to connect to a sensor node. To do that 
 .. doctest::
 
    >>> from asyncio import run
+   >>> from sys import stderr
    >>> from icostate import ICOsystem
    >>> from icostate.config import settings
 
    >>> async def connect_disconnect_sensor_node(icosystem: ICOsystem,
    ...                                          mac_address: str):
-   ...     await icosystem.connect_stu()
-   ...     print(f"Connected: {await icosystem.is_sensor_node_connected()}")
-   ...     await icosystem.connect_sensor_node_mac(mac_address)
-   ...     print(f"Connected: {await icosystem.is_sensor_node_connected()}")
-   ...     await icosystem.disconnect_sensor_node()
-   ...     print(f"Connected: {await icosystem.is_sensor_node_connected()}")
-   ...     await icosystem.disconnect_stu()
+   ...     try:
+   ...         await icosystem.connect_stu()
+   ...         print("Sensor node connected after STU connection: "
+   ...               f"{await icosystem.is_sensor_node_connected()}")
+   ...         try:
+   ...             await icosystem.connect_sensor_node_mac(mac_address)
+   ...             print("Sensor node connected after sensor node connection: "
+   ...                   f"{await icosystem.is_sensor_node_connected()}")
+   ...         except CANConnectionError as error:
+   ...             print(f"Unable to connect to sensor node: {error}", file=stderr)
+   ...         finally:
+   ...             await icosystem.disconnect_sensor_node()
+   ...         print("Sensor node connected after sensor node disconnection: "
+   ...               f"{await icosystem.is_sensor_node_connected()}")
+   ...     except CANInitError as error:
+   ...         print(f"Unable to connect to ICOtronic system: {error}", file=stderr)
+   ...     finally:
+   ...         await icosystem.disconnect_stu()
 
    >>> mac_address = settings.sensor_node.eui # Change to MAC address of your sensor node
    >>> run(connect_disconnect_sensor_node(ICOsystem(), mac_address))
-   Connected: False
-   Connected: True
-   Connected: False
+   Sensor node connected after STU connection: False
+   Sensor node connected after sensor node connection: True
+   Sensor node connected after sensor node disconnection: False
 
 Rename a Sensor Node
 ********************
@@ -147,17 +174,22 @@ To rename a sensor node use the coroutine :meth:`ICOsystem.rename`, which requir
 .. doctest::
 
    >>> from asyncio import run
+   >>> from sys import stderr
    >>> from icostate import ICOsystem
    >>> from icostate.config import settings
 
    >>> async def rename_disconnected(icosystem: ICOsystem,
    ...                               mac_address: str,
    ...                               new_name: str):
-   ...     await icosystem.connect_stu()
-   ...     print(f"State Before: {icosystem.state}")
-   ...     await icosystem.rename(new_name, mac_address)
-   ...     print(f"State After: {icosystem.state}")
-   ...     await icosystem.disconnect_stu()
+   ...     try:
+   ...         await icosystem.connect_stu()
+   ...         print(f"State Before: {icosystem.state}")
+   ...         await icosystem.rename(new_name, mac_address)
+   ...         print(f"State After: {icosystem.state}")
+   ...     except CANInitError as error:
+   ...         print(f"Unable to connect to ICOtronic system: {error}", file=stderr)
+   ...     finally:
+   ...         await icosystem.disconnect_stu()
 
    >>> mac_address = settings.sensor_node.eui # Change to MAC address of your sensor node
    >>> name = "Test-STH"
@@ -182,6 +214,7 @@ The example below shows how you can react to changes of the sensor node name:
 .. doctest::
 
    >>> from asyncio import sleep, run
+   >>> from sys import stderr
    >>> from icostate import ICOsystem
    >>> from icostate.config import settings
 
@@ -191,11 +224,19 @@ The example below shows how you can react to changes of the sensor node name:
    ...     async def name_changed(name: str):
    ...         print(f"Name of sensor node: {name}")
    ...
-   ...     await icosystem.connect_stu()
-   ...     await icosystem.connect_sensor_node_mac(mac_address)
-   ...     await sleep(0)  # Allow scheduler to trigger event coroutine
-   ...     await icosystem.disconnect_sensor_node()
-   ...     await icosystem.disconnect_stu()
+   ...     try:
+   ...         await icosystem.connect_stu()
+   ...         try:
+   ...             await icosystem.connect_sensor_node_mac(mac_address)
+   ...             await sleep(0)  # Allow scheduler to trigger event coroutine
+   ...         except CANConnectionError as error:
+   ...             print(f"Unable to connect to sensor node: {error}", file=stderr)
+   ...         finally:
+   ...             await icosystem.disconnect_sensor_node()
+   ...     except CANInitError as error:
+   ...         print(f"Unable to connect to ICOtronic system: {error}", file=stderr)
+   ...     finally:
+   ...         await icosystem.disconnect_stu()
 
    >>> mac_address = settings.sensor_node.eui # Change to MAC address of your sensor node
    >>> run(react_sensor_node_name(ICOsystem(), mac_address))
@@ -210,65 +251,73 @@ To start a measurement use the function `start_measurement` and provide a :class
 .. doctest::
 
    >>> from asyncio import run, sleep
+   >>> from sys import stderr
    >>> from time import time
    >>> from icostate import ICOsystem, MeasurementData, StreamingConfiguration
    >>> from icostate.config import settings
 
    >>> async def measure_data(icosystem: ICOsystem, mac_address: str) -> None:
-   ...     await icosystem.connect_stu()
-   ...     await icosystem.connect_sensor_node_mac(mac_address)
+   ...     try:
+   ...         await icosystem.connect_stu()
+   ...         try:
+   ...             await icosystem.connect_sensor_node_mac(mac_address)
    ...
-   ...     data = None
-   ...     measurement_time = None
+   ...             data = None
+   ...             measurement_time = None
    ...
-   ...     @icosystem.on("sensor_node_measurement_data")
-   ...     async def measurement_data_changed(measurement_data:
-   ...                                        MeasurementData) -> None:
-   ...         nonlocal measurement_time
-   ...         measurement_time = time()
-   ...         nonlocal data
-   ...         data = measurement_data
+   ...             @icosystem.on("sensor_node_measurement_data")
+   ...             async def measurement_data_changed(measurement_data:
+   ...                                                MeasurementData) -> None:
+   ...                 nonlocal measurement_time
+   ...                 measurement_time = time()
+   ...                 nonlocal data
+   ...                 data = measurement_data
    ...
-   ...     await icosystem.start_measurement(StreamingConfiguration(first=True))
-   ...     # Wait until one measurement data object is ready
-   ...     while data is None:
-   ...         await sleep(0.01)
+   ...             await icosystem.start_measurement(StreamingConfiguration(first=True))
+   ...             # Wait until one measurement data object is ready
+   ...             while data is None:
+   ...                 await sleep(0.01)
    ...
-   ...     await icosystem.stop_measurement()
+   ...             await icosystem.stop_measurement()
    ...
-   ...     # Use methods `first`, `second`, and `third` to access different
-   ...     # channels
-   ...     first_channel = data.first()
-   ...     # By default measurement data is saved as raw 16 bit ADC value
-   ...     assert all((
-   ...         True if 0 <= datapoint.value <= 2**16 else False
-   ...         for datapoint in first_channel
-   ...     ))
-   ...     # Timestamps are stored in seconds from the epoch
-   ...     assert all((
-   ...         (
-   ...             True
-   ...             if measurement_time - 1
-   ...             <= datapoint.timestamp
-   ...             <= measurement_time + 1
-   ...             else False
-   ...         )
-   ...         for datapoint in first_channel
-   ...     )), "Offset of timestamp of measurement data too large"
+   ...             # Use methods `first`, `second`, and `third` to access different
+   ...             # channels
+   ...             first_channel = data.first()
+   ...             # By default measurement data is saved as raw 16 bit ADC value
+   ...             assert all((
+   ...                 True if 0 <= datapoint.value <= 2**16 else False
+   ...                 for datapoint in first_channel
+   ...             ))
+   ...             # Timestamps are stored in seconds from the epoch
+   ...             assert all((
+   ...                 (
+   ...                     True
+   ...                     if measurement_time - 1
+   ...                     <= datapoint.timestamp
+   ...                     <= measurement_time + 1
+   ...                     else False
+   ...                 )
+   ...                 for datapoint in first_channel
+   ...             )), "Offset of timestamp of measurement data too large"
    ...
-   ...     # You can also access the measurement counters
-   ...     # (cyclic value between 0 - 255)
-   ...     assert all((
-   ...         True if 0 <= datapoint.counter <= 255 else False
-   ...         for datapoint in first_channel
-   ...     ))
-   ...     # To get a sense of the quality of the signal you can use the method
-   ...     # dataloss, which will return a value between 0 (no data loss) and
-   ...     # 1 (all data lost).
-   ...     assert 0 <= data.dataloss() <= 1
-   ...
-   ...     await icosystem.disconnect_sensor_node()
-   ...     await icosystem.disconnect_stu()
+   ...             # You can also access the measurement counters
+   ...             # (cyclic value between 0 - 255)
+   ...             assert all((
+   ...                 True if 0 <= datapoint.counter <= 255 else False
+   ...                 for datapoint in first_channel
+   ...             ))
+   ...             # To get a sense of the quality of the signal you can use the method
+   ...             # dataloss, which will return a value between 0 (no data loss) and
+   ...             # 1 (all data lost).
+   ...             assert 0 <= data.dataloss() <= 1
+   ...         except CANConnectionError as error:
+   ...             print(f"Measurement error: {error}", file=stderr)
+   ...         finally:
+   ...             await icosystem.disconnect_sensor_node()
+   ...     except CANInitError as error:
+   ...         print(f"Unable to connect to ICOtronic system: {error}", file=stderr)
+   ...     finally:
+   ...         await icosystem.disconnect_stu()
 
    >>> mac_address = settings.sensor_node.eui # Change to MAC address of your sensor node
    >>> run(measure_data(ICOsystem(), mac_address))
